@@ -65,3 +65,17 @@ class CDCRequestModel:
     get_headers: CDCGetHeaders
     post_headers: CDCPostHeaders
     post_payload: CDCPostPayload
+
+
+@dataclass(frozen=True)
+class CDCSlot:
+    session_date: str
+    day: str
+    session_number: int
+    time_range: str
+    status: str
+    image_name: str
+
+    @property
+    def is_available(self) -> bool:
+        return self.status == "available"

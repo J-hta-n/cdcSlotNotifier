@@ -32,6 +32,9 @@ COOKIES=ASP.NET_SessionId=...; ILOAFLLQ=...; cf_clearance=...; __cf_bm=...
 
 # Full URL-encoded POST form payload copied from booking POST request
 POST_PAYLOAD=ctl00%24ContentPlaceHolder1%24ScriptManager1=...&__VIEWSTATE=...&__EVENTVALIDATION=...&...
+
+# Optional: where each raw POST response is dumped for debugging
+POST_RESPONSE_DUMP_FILE=debug/last_post_response.txt
 ```
 
 Required payload keys include:
@@ -62,6 +65,8 @@ Behavior:
 - `No slots found` is deduplicated by notifier logic
 - `slots found` notifications are sent immediately
 - `Session expired` is sent immediately and scheduler stops
+- Raw CDC POST response is saved each check to `debug/last_post_response.txt` (or your configured dump file)
+- Slot detection now parses the booking grid by date/day/session columns (`Images1.gif` = available)
 
 ## Notes
 
