@@ -2,7 +2,7 @@
 
 This project now runs with a minimal flow:
 
-- Put `COOKIES` and `POST_PAYLOAD` in `.env`
+- Put `COOKIES` (and optional `COURSE_CODE`) in `.env`
 - Run `python main.py`
 - First check runs immediately (no 9am/1-hour window logic)
 - Then it keeps checking every `CHECK_INTERVAL_MINUTES`
@@ -30,22 +30,9 @@ CHECK_INTERVAL_MINUTES=5
 # Full Cookie header string copied from booking request
 COOKIES=ASP.NET_SessionId=...; ILOAFLLQ=...; cf_clearance=...; __cf_bm=...
 
-# Full URL-encoded POST form payload copied from booking POST request
-POST_PAYLOAD=ctl00%24ContentPlaceHolder1%24ScriptManager1=...&__VIEWSTATE=...&__EVENTVALIDATION=...&...
-
 # Optional: where each raw POST response is dumped for debugging
 POST_RESPONSE_DUMP_FILE=debug/last_post_response.txt
 ```
-
-Required payload keys include:
-
-- `ctl00$ContentPlaceHolder1$ScriptManager1`
-- `__EVENTTARGET`
-- `__VIEWSTATE`
-- `__VIEWSTATEGENERATOR`
-- `__PREVIOUSPAGE`
-- `__EVENTVALIDATION`
-- `ctl00$ContentPlaceHolder1$ddlCourse`
 
 ## Run
 
@@ -63,13 +50,15 @@ Behavior:
 
 - First check happens instantly when started
 - `No slots found` is deduplicated by notifier logic
-- `slots found` notifications are sent immediately
+- `slots found` notifications are sent immediately with date/session/time details
 - `Session expired` is sent immediately and scheduler stops
+- Runtime errors (for example 429 rate limit) are also sent to Telegram
 - Raw CDC POST response is saved each check to `debug/last_post_response.txt` (or your configured dump file)
 - Slot detection now parses the booking grid by date/day/session columns (`Images1.gif` = available)
+- POST form payload is auto-constructed in code; only fresh hidden fields + course value are injected at runtime
 
 ## Notes
 
 - `python main.py login` is intentionally deprecated in this simplified mode.
 - Legacy login/session capture modules were removed in this simplified mode.
-- If you get 429/session expired, refresh both `COOKIES` and `POST_PAYLOAD` from a fresh browser request.
+- If you get 429/session expired, refresh `COOKIES` from a fresh browser request.

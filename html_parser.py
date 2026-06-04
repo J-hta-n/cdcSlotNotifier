@@ -45,12 +45,23 @@ def extract_slots(response_text: str) -> List[CDCSlot]:
 
     # First 2 header columns are date/day. Session columns start from index 2.
     for idx, cell in enumerate(header_cells[2:], start=1):
-        plain = _strip_html(cell)
-        match = re.match(r"(\d+)\s*(.+)", plain)
-        if not match:
+        br_match = re.search(
+            r"(\d+)\s*<br\s*/?>\s*([0-9]{2}:[0-9]{2}\s*-\s*[0-9]{2}:[0-9]{2})",
+            cell,
+            flags=re.IGNORECASE,
+        )
+        if br_match:
+            session_no = int(br_match.group(1))
+            time_range = br_match.group(2).strip()
+            session_time_map[session_no] = time_range
             continue
-        session_no = int(match.group(1))
-        time_range = match.group(2).strip()
+
+        plain = _strip_html(cell)
+        split_match = re.match(r"(\d+)\s+(.+)", plain)
+        if not split_match:
+            continue
+        session_no = int(split_match.group(1))
+        time_range = split_match.group(2).strip()
         session_time_map[session_no] = time_range
 
     parsed_slots: List[CDCSlot] = []

@@ -26,7 +26,7 @@ class ScheduledSlotChecker:
         print(f"\n[{timestamp}] Checking for slots...")
 
         # Perform check
-        slot_count, error = self.checker.check_slots()
+        slot_count, error, details = self.checker.check_slots()
         
         # Handle errors (session expired, network issues)
         if error:
@@ -37,12 +37,13 @@ class ScheduledSlotChecker:
                 self.stop()
             else:
                 print(f"[{timestamp}] ⚠ {error}")
+                self.notifier.notify_error(error)
         else:
             # Session is valid, check slot count
             if slot_count > 0:
                 # Slots found!
                 print(f"[{timestamp}] ✓ {slot_count} slots found!")
-                self.notifier.notify_slots_found(slot_count)
+                self.notifier.notify_slots_found(slot_count, details, config.COURSE_CODE)
             else:
                 # No slots
                 print(f"[{timestamp}] No slots found")

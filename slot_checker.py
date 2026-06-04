@@ -1,8 +1,7 @@
-import re
 import html
-from typing import Dict, Optional, Tuple
-from urllib.parse import parse_qsl
+import re
 from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -15,10 +14,10 @@ from model import CDCPostHeaders, CDCPostPayload
 
 class SlotChecker:
     """Handles HTTP POST requests to CDC booking endpoint and response parsing."""
-    
+
     def __init__(self):
         self.session = self._create_session()
-        self.payload = self._parse_post_payload(config.POST_PAYLOAD)
+        self.base_payload = self._build_base_payload()
 
     @staticmethod
     def _save_post_response(response_text: str) -> None:
@@ -28,12 +27,11 @@ class SlotChecker:
             output_path = Path.cwd() / output_path
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(response_text, encoding="utf-8")
-    
+
     def _create_session(self) -> requests.Session:
         """Create a requests session with retry strategy and cookies."""
         session = requests.Session()
-        
-        # Add retry strategy for resilience
+
         retry_strategy = Retry(
             total=3,
             backoff_factor=1,
@@ -42,14 +40,13 @@ class SlotChecker:
         adapter = HTTPAdapter(max_retries=retry_strategy)
         session.mount("http://", adapter)
         session.mount("https://", adapter)
-        
-        # Set cookies from .env COOKIES header
+
         cookies = self._parse_cookie_header(config.COOKIES)
         for name, value in cookies.items():
             session.cookies.set(name, value)
-        
+
         return session
-    
+
     @staticmethod
     def _parse_cookie_header(raw: str) -> Dict[str, str]:
         text = (raw or "").strip()
@@ -71,18 +68,30 @@ class SlotChecker:
         return cookies
 
     @staticmethod
-    def _parse_post_payload(raw: str) -> CDCPostPayload:
-        text = (raw or "").strip()
-        if not text:
-            raise RuntimeError("Missing POST_PAYLOAD in .env")
-
-        parsed: Dict[str, str] = dict(parse_qsl(text, keep_blank_values=True))
-        missing = [key for key in config.REQUIRED_POST_PAYLOAD_KEYS if key not in parsed]
-        if missing:
-            raise RuntimeError(
-                "POST_PAYLOAD is missing required keys: " + ", ".join(missing)
-            )
-        return parsed
+    def _build_base_payload() -> CDCPostPayload:
+        """Build stable payload; dynamic ASP.NET fields are refreshed each run."""
+        return {
+            "ctl00$ContentPlaceHolder1$ScriptManager1": "ctl00$ContentPlaceHolder1$UpdatePanel1|ctl00$ContentPlaceHolder1$ddlCourse",
+            "ctl00_Menu1_TreeView1_ExpandState": "eennnnnnnennnnennenneunnnnnnnnnnnnnnnenen",
+            "ctl00_Menu1_TreeView1_SelectedNode": "",
+            "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlCourse",
+            "__EVENTARGUMENT": "",
+            "ctl00_Menu1_TreeView1_PopulateLog": "",
+            "__LASTFOCUS": "",
+            "ctl00$ContentPlaceHolder1$txtVerificationCode": "",
+            "ctl00$ContentPlaceHolder1$ddlCourse": "",
+            "ctl00$ContentPlaceHolder1$hdReserveCnt": "0",
+            "ctl00$ContentPlaceHolder1$hdTicketEndDate": "",
+            "ctl00$ContentPlaceHolder1$hdM1": "0",
+            "ctl00$ContentPlaceHolder1$hdM2": "0",
+            "ctl00$ContentPlaceHolder1$hdM3": "0",
+            "ctl00$ContentPlaceHolder1$hdCacheBackNav": "5",
+            "ctl00$ContentPlaceHolder1$hdCacheForNav": "5",
+            "ctl00$ContentPlaceHolder1$hdType": "Class3",
+            "ctl00$ContentPlaceHolder1$hdDate": "",
+            "ctl00$ContentPlaceHolder1$hdSession": "",
+            "ctl00$ContentPlaceHolder1$hdDays": "",
+        }
 
     @staticmethod
     def _extract_hidden_field(page_html: str, field_name: str) -> str:
@@ -138,27 +147,39 @@ class SlotChecker:
         merged = dict(payload)
         merged.update(fresh_fields)
 
-        # If COURSE_CODE is provided, map it to exact server-rendered option value.
         exact_course_value = self._resolve_exact_course_value(page_html, config.COURSE_CODE)
-        if exact_course_value is not None:
-            merged["ctl00$ContentPlaceHolder1$ddlCourse"] = exact_course_value
+        if exact_course_value is None:
+            raise RuntimeError(
+                f"COURSE_CODE '{config.COURSE_CODE}' was not found in the current dropdown options."
+            )
+        merged["ctl00$ContentPlaceHolder1$ddlCourse"] = exact_course_value
         return merged
-    
-    def check_slots(self) -> Tuple[int, Optional[str]]:
-        """
-        Make HTTP POST request to CDC endpoint to check for available slots.
-        
-        Returns:
-            Tuple of (slot_count, error_message)
-            - slot_count: 0 if no slots, >0 if slots found
-            - error_message: None if successful, error string if session expired or request failed
-        """
-        
+
+    @staticmethod
+    def _format_available_slot_details(available_slots) -> str:
+        """Format available slots as compact lines for Telegram notifications."""
+        if not available_slots:
+            return ""
+
+        max_lines = 12
+        lines = []
+        for slot in available_slots[:max_lines]:
+            lines.append(
+                f"{slot.session_date} {slot.day} | S{slot.session_number} {slot.time_range}"
+            )
+
+        remaining = len(available_slots) - len(lines)
+        if remaining > 0:
+            lines.append(f"...and {remaining} more")
+
+        return "\n".join(lines)
+
+    def check_slots(self) -> Tuple[int, Optional[str], str]:
+        """Make HTTP POST request to CDC endpoint to check for available slots."""
         try:
-            payload: CDCPostPayload = dict(self.payload)
+            payload: CDCPostPayload = dict(self.base_payload)
             payload = self._apply_fresh_hidden_fields(payload)
-            
-            # Make POST request with standard headers
+
             headers: CDCPostHeaders = {
                 "User-Agent": config.CDC_USER_AGENT,
                 "Accept": "*/*",
@@ -169,59 +190,48 @@ class SlotChecker:
                 "Referer": config.CDC_BOOKING_URL,
                 "X-MicrosoftAjax": "Delta=true",
             }
-            
+
             response = self.session.post(
                 config.CDC_BOOKING_URL,
                 data=payload,
                 headers=headers,
-                timeout=10
+                timeout=10,
             )
 
             if response.status_code == 429:
-                return 0, "Rate limited (429) by CDC/Cloudflare. Refresh COOKIES and POST_PAYLOAD, then retry."
-            
-            response.raise_for_status()
+                return 0, "Rate limited (429) by CDC/Cloudflare. Refresh COOKIES and then retry.", ""
 
-            # Always dump response so parser behavior can be verified quickly.
+            response.raise_for_status()
             self._save_post_response(response.text)
 
             if "|error|500|" in response.text:
                 if "Invalid postback or callback argument" in response.text:
-                    return 0, "Invalid postback/event validation. Refreshed hidden fields still rejected; refresh COOKIES and POST_PAYLOAD from latest successful request."
-                return 0, "CDC returned ASP.NET AJAX error payload (|error|500|). See debug dump file."
-            
-            # Check for session expiry indicators
-            if "session has expired" in response.text.lower() or "not authenticated" in response.text.lower():
-                return 0, "Session expired"
-            
-            # Parse response for slot availability
-            response_text = response.text
+                    return 0, "Invalid postback/event validation. Refreshed hidden fields were rejected; refresh COOKIES and retry.", ""
+                return 0, "CDC returned ASP.NET AJAX error payload (|error|500|). See debug dump file.", ""
 
+            if "session has expired" in response.text.lower() or "not authenticated" in response.text.lower():
+                return 0, "Session expired", ""
+
+            response_text = response.text
             slots = extract_slots(response_text)
             available_slots = [slot for slot in slots if slot.is_available]
             if available_slots:
-                return len(available_slots), None
-            
-            # Look for "No available slots" message
+                details = self._format_available_slot_details(available_slots)
+                return len(available_slots), None, details
+
             if "No available slots" in response_text:
-                return 0, None
-            
-            # Try to extract slot count from response
-            # Look for patterns like "X session available" or slot grid presence
-            session_match = re.search(r'(\d+)\s+session\s+available', response_text, re.IGNORECASE)
+                return 0, None, ""
+
+            session_match = re.search(r"(\d+)\s+session\s+available", response_text, re.IGNORECASE)
             if session_match:
-                slot_count = int(session_match.group(1))
-                return slot_count, None
-            
-            # If response has slot grid HTML, assume slots are available
+                return int(session_match.group(1)), None, ""
+
             if "lblSessionNo" in response_text and "display: none" not in response_text:
-                # This is a heuristic - the session availability row is visible
-                return 1, None  # Conservative: report at least 1 slot found
-            
-            # Default: no slots found if we couldn't confirm availability
-            return 0, None
-        
+                return 1, None, ""
+
+            return 0, None, ""
+
         except requests.exceptions.RequestException as e:
-            return 0, f"Request failed: {str(e)}"
+            return 0, f"Request failed: {str(e)}", ""
         except Exception as e:
-            return 0, f"Unexpected error: {str(e)}"
+            return 0, f"Unexpected error: {str(e)}", ""

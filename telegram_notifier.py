@@ -13,6 +13,8 @@ class TelegramNotifier:
         self.chat_id = config.TELEGRAM_CHAT_ID
         self.last_notif_time = None
         self.last_notif_type = None
+        self.last_error_message = None
+        self.last_error_time = None
     
     async def send_message(self, message: str) -> bool:
         """Send a message via Telegram. Returns True if successful."""
@@ -84,12 +86,12 @@ class TelegramNotifier:
         
         return success
     
-    def notify_slots_found(self, slot_count: int, details: str = "") -> bool:
+    def notify_slots_found(self, slot_count: int, details: str = "", course_code: str = "") -> bool:
         """Send 'slots found' notification."""
         if not self.should_notify("slots_found"):
             return False
         
-        message = config.format_slots_found_msg(slot_count, details)
+        message = config.format_slots_found_msg(slot_count, details, course_code)
         success = self.send_message_sync(message)
         
         if success:
@@ -109,4 +111,24 @@ class TelegramNotifier:
             self.last_notif_time = datetime.now()
             print(f"✓ Notification sent: {message}")
         
+        return success
+
+    def notify_error(self, error_message: str) -> bool:
+        """Send non-session runtime errors (e.g. 429) with dedupe for repeats."""
+        now = datetime.now()
+        if (
+            self.last_error_message == error_message
+            and self.last_error_time is not None
+            and now - self.last_error_time <= timedelta(minutes=15)
+        ):
+            return False
+
+        message = f"{config.format_time()} Error: {error_message}"
+        success = self.send_message_sync(message)
+        if success:
+            self.last_error_message = error_message
+            self.last_error_time = now
+            self.last_notif_type = "error"
+            self.last_notif_time = now
+            print(f"✓ Notification sent: {message}")
         return success
