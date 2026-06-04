@@ -10,15 +10,29 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # CDC Configuration
 COURSE_CODE = os.getenv("COURSE_CODE", "EV-ELITETEAM")
-WINDOW_START_HOUR = int(os.getenv("WINDOW_START_HOUR", "9"))
 CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "5"))
+CDC_USER_AGENT = os.getenv(
+    "CDC_USER_AGENT",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+)
 
-# Session Storage
-SESSION_STATE_FILE = os.getenv("SESSION_STATE_FILE", "session_state.json")
+# Direct request replay inputs
+COOKIE = os.getenv("COOKIE", "").strip()
+POST_PAYLOAD = os.getenv("POST_PAYLOAD", "").strip()
+
+REQUIRED_POST_PAYLOAD_KEYS = [
+    "ctl00$ContentPlaceHolder1$ScriptManager1",
+    "__EVENTTARGET",
+    "__VIEWSTATE",
+    "__VIEWSTATEGENERATOR",
+    "__PREVIOUSPAGE",
+    "__EVENTVALIDATION",
+    "ctl00$ContentPlaceHolder1$ddlCourse",
+]
 
 # CDC Endpoint
 CDC_BOOKING_URL = "https://bookingportal.cdc.com.sg/NewPortal/Booking/BookingPL.aspx"
-CDC_LOGIN_URL = "https://bookingportal.cdc.com.sg/"
 
 # Messages
 def format_time():
