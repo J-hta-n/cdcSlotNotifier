@@ -18,7 +18,7 @@ CDC_USER_AGENT = os.getenv(
 )
 
 # Direct request replay inputs
-COOKIE = os.getenv("COOKIE", "").strip()
+COOKIES = os.getenv("COOKIES", "").strip()
 POST_PAYLOAD = os.getenv("POST_PAYLOAD", "").strip()
 
 REQUIRED_POST_PAYLOAD_KEYS = [

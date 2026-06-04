@@ -2,7 +2,7 @@
 
 This project now runs with a minimal flow:
 
-- Put `COOKIE` and `POST_PAYLOAD` in `.env`
+- Put `COOKIES` and `POST_PAYLOAD` in `.env`
 - Run `python main.py`
 - First check runs immediately (no 9am/1-hour window logic)
 - Then it keeps checking every `CHECK_INTERVAL_MINUTES`
@@ -28,7 +28,7 @@ COURSE_CODE=EV-ELITETEAM
 CHECK_INTERVAL_MINUTES=5
 
 # Full Cookie header string copied from booking request
-COOKIE=ASP.NET_SessionId=...; ILOAFLLQ=...; cf_clearance=...; __cf_bm=...
+COOKIES=ASP.NET_SessionId=...; ILOAFLLQ=...; cf_clearance=...; __cf_bm=...
 
 # Full URL-encoded POST form payload copied from booking POST request
 POST_PAYLOAD=ctl00%24ContentPlaceHolder1%24ScriptManager1=...&__VIEWSTATE=...&__EVENTVALIDATION=...&...
@@ -67,4 +67,4 @@ Behavior:
 
 - `python main.py login` is intentionally deprecated in this simplified mode.
 - Legacy login/session capture modules were removed in this simplified mode.
-- If you get 429/session expired, refresh both `COOKIE` and `POST_PAYLOAD` from a fresh browser request.
+- If you get 429/session expired, refresh both `COOKIES` and `POST_PAYLOAD` from a fresh browser request.

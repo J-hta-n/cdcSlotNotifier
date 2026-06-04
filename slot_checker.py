@@ -31,8 +31,8 @@ class SlotChecker:
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         
-        # Set cookies from .env COOKIE header
-        cookies = self._parse_cookie_header(config.COOKIE)
+        # Set cookies from .env COOKIES header
+        cookies = self._parse_cookie_header(config.COOKIES)
         for name, value in cookies.items():
             session.cookies.set(name, value)
         
@@ -42,7 +42,7 @@ class SlotChecker:
     def _parse_cookie_header(raw: str) -> Dict[str, str]:
         text = (raw or "").strip()
         if not text:
-            raise RuntimeError("Missing COOKIE in .env")
+            raise RuntimeError("Missing COOKIES in .env")
 
         cookies: Dict[str, str] = {}
         for part in text.split(";"):
@@ -55,7 +55,7 @@ class SlotChecker:
                 cookies[name] = value.strip()
 
         if not cookies:
-            raise RuntimeError("COOKIE is not a valid cookie header string")
+            raise RuntimeError("COOKIES is not a valid cookie header string")
         return cookies
 
     @staticmethod
@@ -108,7 +108,7 @@ class SlotChecker:
             )
 
             if response.status_code == 429:
-                return 0, "Rate limited (429) by CDC/Cloudflare. Refresh COOKIE and POST_PAYLOAD, then retry."
+                return 0, "Rate limited (429) by CDC/Cloudflare. Refresh COOKIES and POST_PAYLOAD, then retry."
             
             response.raise_for_status()
             
