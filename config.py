@@ -20,6 +20,7 @@ CDC_USER_AGENT = os.getenv(
 # Direct request replay inputs
 COOKIES = os.getenv("COOKIES", "").strip()
 POST_PAYLOAD = os.getenv("POST_PAYLOAD", "").strip()
+POST_RESPONSE_DUMP_FILE = os.getenv("POST_RESPONSE_DUMP_FILE", "debug/last_post_response.txt").strip()
 
 REQUIRED_POST_PAYLOAD_KEYS = [
     "ctl00$ContentPlaceHolder1$ScriptManager1",
