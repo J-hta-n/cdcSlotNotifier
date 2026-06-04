@@ -19,18 +19,7 @@ CDC_USER_AGENT = os.getenv(
 
 # Direct request replay inputs
 COOKIES = os.getenv("COOKIES", "").strip()
-POST_PAYLOAD = os.getenv("POST_PAYLOAD", "").strip()
 POST_RESPONSE_DUMP_FILE = os.getenv("POST_RESPONSE_DUMP_FILE", "debug/last_post_response.txt").strip()
-
-REQUIRED_POST_PAYLOAD_KEYS = [
-    "ctl00$ContentPlaceHolder1$ScriptManager1",
-    "__EVENTTARGET",
-    "__VIEWSTATE",
-    "__VIEWSTATEGENERATOR",
-    "__PREVIOUSPAGE",
-    "__EVENTVALIDATION",
-    "ctl00$ContentPlaceHolder1$ddlCourse",
-]
 
 # CDC Endpoint
 CDC_BOOKING_URL = "https://bookingportal.cdc.com.sg/NewPortal/Booking/BookingPL.aspx"
@@ -40,12 +29,29 @@ def format_time():
     """Format current time as [HH:MMam/pm]"""
     return datetime.now().strftime("[%I:%M%p]").lower()
 
+
+def format_course_label(course_code: str) -> str:
+    code = (course_code or "").strip().upper()
+    known = {
+        "INDUCTION-PROGRAMME": "induction programme",
+        "EV-ELITETEAM": "practical",
+    }
+    if code in known:
+        return known[code]
+    if not code:
+        return ""
+    return code.replace("-", " ").lower()
+
 def format_no_slots_msg():
     return f"{format_time()} No slots found"
 
-def format_slots_found_msg(slot_count: int, details: str = ""):
+def format_slots_found_msg(slot_count: int, details: str = "", course_code: str = ""):
     """Format message when slots are found"""
-    msg = f"{format_time()} {slot_count} slots found!"
+    course_label = format_course_label(course_code)
+    if course_label:
+        msg = f"{format_time()} {slot_count} {course_label} slots found!"
+    else:
+        msg = f"{format_time()} {slot_count} slots found!"
     if details:
         msg += f"\n{details}"
     return msg
