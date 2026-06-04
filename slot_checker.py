@@ -1,18 +1,21 @@
+import re
+from typing import Dict, Optional, Tuple
+from urllib.parse import parse_qsl
+
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import re
-from typing import Tuple, Optional, Dict
-from session_storage import SessionStorage
+
 import config
+from model import CDCPostHeaders, CDCPostPayload
 
 
 class SlotChecker:
     """Handles HTTP POST requests to CDC booking endpoint and response parsing."""
     
     def __init__(self):
-        self.storage = SessionStorage()
         self.session = self._create_session()
+        self.payload = self._parse_post_payload(config.POST_PAYLOAD)
     
     def _create_session(self) -> requests.Session:
         """Create a requests session with retry strategy and cookies."""
@@ -22,76 +25,55 @@ class SlotChecker:
         retry_strategy = Retry(
             total=3,
             backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
+            status_forcelist=[500, 502, 503, 504],
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         
-        # Set cookies from storage
-        cookies = self.storage.get_cookies()
+        # Set cookies from .env COOKIE header
+        cookies = self._parse_cookie_header(config.COOKIE)
         for name, value in cookies.items():
             session.cookies.set(name, value)
         
         return session
     
-    def _build_payload(self) -> Dict[str, str]:
-        """Build the POST payload for course selection and slot check."""
-        view_state_data = self.storage.get_view_state()
-        
-        # Base payload structure based on CDC endpoint requirements
-        payload = {
-            "ctl00$ContentPlaceHolder1$ScriptManager1": "ctl00$ContentPlaceHolder1$UpdatePanel1|ctl00$ContentPlaceHolder1$ddlCourse",
-            "ctl00_Menu1_TreeView1_ExpandState": "eennnnnnnennnnennenneunnnnnnnnnnnnnnnenen",
-            "ctl00_Menu1_TreeView1_SelectedNode": "",
-            "__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlCourse",
-            "__EVENTARGUMENT": "",
-            "ctl00_Menu1_TreeView1_PopulateLog": "",
-            "__LASTFOCUS": "",
-            "__VIEWSTATE": view_state_data["view_state"],
-            "__VIEWSTATEGENERATOR": view_state_data["view_state_generator"],
-            "__PREVIOUSPAGE": view_state_data["previous_page"],
-            "__EVENTVALIDATION": view_state_data["event_validation"],
-            "ctl00$ContentPlaceHolder1$txtVerificationCode": "",
-            "ctl00$ContentPlaceHolder1$ddlCourse": config.COURSE_CODE,
-            "ctl00$ContentPlaceHolder1$hdReserveCnt": "0",
-            "ctl00$ContentPlaceHolder1$hdTicketEndDate": "",
-            "ctl00$ContentPlaceHolder1$hdM1": "0",
-            "ctl00$ContentPlaceHolder1$hdM2": "0",
-            "ctl00$ContentPlaceHolder1$hdM3": "0",
-            "ctl00$ContentPlaceHolder1$hdCacheBackNav": "5",
-            "ctl00$ContentPlaceHolder1$hdCacheForNav": "5",
-            "ctl00$ContentPlaceHolder1$hdType": "Class3",
-            "ctl00$ContentPlaceHolder1$hdDate": "",
-            "ctl00$ContentPlaceHolder1$hdSession": "",
-            "ctl00$ContentPlaceHolder1$hdDays": "",
-        }
-        
-        return payload
-    
-    def _extract_view_state_from_response(self, response_text: str) -> bool:
-        """
-        Extract updated __VIEWSTATE from ASP.NET response and update storage.
-        Returns True if successfully extracted and updated.
-        """
-        try:
-            # ASP.NET AJAX responses contain view state updates in specific format
-            # Look for pattern: |hiddenField|__VIEWSTATE|<value>|
-            match = re.search(r'\|hiddenField\|__VIEWSTATE\|([^|]+)\|', response_text)
-            if match:
-                new_view_state = match.group(1)
-                # Also try to extract other fields
-                gen_match = re.search(r'\|hiddenField\|__VIEWSTATEGENERATOR\|([^|]+)\|', response_text)
-                event_match = re.search(r'\|hiddenField\|__EVENTVALIDATION\|([^|]+)\|', response_text)
-                
-                gen_value = gen_match.group(1) if gen_match else ""
-                event_value = event_match.group(1) if event_match else ""
-                
-                self.storage.set_view_state(new_view_state, gen_value, event_value)
-                return True
-        except Exception as e:
-            print(f"Warning: Error extracting view state: {e}")
-        return False
+    @staticmethod
+    def _parse_cookie_header(raw: str) -> Dict[str, str]:
+        text = (raw or "").strip()
+        if not text:
+            raise RuntimeError("Missing COOKIE in .env")
+
+        cookies: Dict[str, str] = {}
+        for part in text.split(";"):
+            pair = part.strip()
+            if not pair or "=" not in pair:
+                continue
+            name, value = pair.split("=", 1)
+            name = name.strip()
+            if name:
+                cookies[name] = value.strip()
+
+        if not cookies:
+            raise RuntimeError("COOKIE is not a valid cookie header string")
+        return cookies
+
+    @staticmethod
+    def _parse_post_payload(raw: str) -> CDCPostPayload:
+        text = (raw or "").strip()
+        if not text:
+            raise RuntimeError("Missing POST_PAYLOAD in .env")
+
+        parsed: Dict[str, str] = dict(parse_qsl(text, keep_blank_values=True))
+        missing = [key for key in config.REQUIRED_POST_PAYLOAD_KEYS if key not in parsed]
+        if missing:
+            raise RuntimeError(
+                "POST_PAYLOAD is missing required keys: " + ", ".join(missing)
+            )
+
+        # Course can still be overridden in .env.
+        parsed["ctl00$ContentPlaceHolder1$ddlCourse"] = config.COURSE_CODE
+        return parsed
     
     def check_slots(self) -> Tuple[int, Optional[str]]:
         """
@@ -103,21 +85,18 @@ class SlotChecker:
             - error_message: None if successful, error string if session expired or request failed
         """
         
-        # Check session validity first
-        if not self.storage.is_session_valid():
-            return 0, "Session not valid. Please run /login first."
-        
         try:
-            payload = self._build_payload()
+            payload: CDCPostPayload = dict(self.payload)
             
             # Make POST request with standard headers
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            headers: CDCPostHeaders = {
+                "User-Agent": config.CDC_USER_AGENT,
                 "Accept": "*/*",
                 "Accept-Encoding": "gzip, deflate, br",
+                "Accept-Language": "en-US,en;q=0.9",
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Origin": "https://bookingportal.cdc.com.sg",
-                "Referer": "https://bookingportal.cdc.com.sg/",
+                "Referer": config.CDC_BOOKING_URL,
                 "X-MicrosoftAjax": "Delta=true",
             }
             
@@ -127,11 +106,11 @@ class SlotChecker:
                 headers=headers,
                 timeout=10
             )
+
+            if response.status_code == 429:
+                return 0, "Rate limited (429) by CDC/Cloudflare. Refresh COOKIE and POST_PAYLOAD, then retry."
             
             response.raise_for_status()
-            
-            # Extract and update view state for next request
-            self._extract_view_state_from_response(response.text)
             
             # Check for session expiry indicators
             if "session has expired" in response.text.lower() or "not authenticated" in response.text.lower():

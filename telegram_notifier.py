@@ -2,7 +2,6 @@ from telegram import Bot
 from telegram.error import TelegramError
 import asyncio
 from datetime import datetime, timedelta
-from session_storage import SessionStorage
 import config
 
 
@@ -12,7 +11,8 @@ class TelegramNotifier:
     def __init__(self):
         self.bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
         self.chat_id = config.TELEGRAM_CHAT_ID
-        self.storage = SessionStorage()
+        self.last_notif_time = None
+        self.last_notif_type = None
     
     async def send_message(self, message: str) -> bool:
         """Send a message via Telegram. Returns True if successful."""
@@ -41,8 +41,9 @@ class TelegramNotifier:
         Returns:
             True if notification should be sent, False if it's a duplicate
         """
-        last_notif_time, last_notif_type = self.storage.get_last_notification()
-        
+        last_notif_time = self.last_notif_time
+        last_notif_type = self.last_notif_type
+
         # Always send if this is the first notification
         if last_notif_time is None:
             return True
@@ -77,7 +78,8 @@ class TelegramNotifier:
         success = self.send_message_sync(message)
         
         if success:
-            self.storage.set_last_notification("no_slots")
+            self.last_notif_type = "no_slots"
+            self.last_notif_time = datetime.now()
             print(f"✓ Notification sent: {message}")
         
         return success
@@ -91,7 +93,8 @@ class TelegramNotifier:
         success = self.send_message_sync(message)
         
         if success:
-            self.storage.set_last_notification("slots_found")
+            self.last_notif_type = "slots_found"
+            self.last_notif_time = datetime.now()
             print(f"✓ Notification sent: {message}")
         
         return success
@@ -102,7 +105,8 @@ class TelegramNotifier:
         success = self.send_message_sync(message)
         
         if success:
-            self.storage.set_last_notification("expired")
+            self.last_notif_type = "expired"
+            self.last_notif_time = datetime.now()
             print(f"✓ Notification sent: {message}")
         
         return success
