@@ -19,7 +19,7 @@ def main():
 
     if command == "start":
         print("\nStarting scheduler...")
-        from scheduler import ScheduledSlotChecker
+        from src.lib.scheduler import ScheduledSlotChecker
 
         try:
             scheduler = ScheduledSlotChecker()

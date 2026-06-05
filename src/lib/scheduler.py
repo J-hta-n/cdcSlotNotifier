@@ -2,8 +2,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime
 import time
-from slot_checker import SlotChecker
-from telegram_notifier import TelegramNotifier
+from src.lib.cdc.slot_checker import SlotChecker
+from src.lib.telegram_notifier import TelegramNotifier
 import config
 
 

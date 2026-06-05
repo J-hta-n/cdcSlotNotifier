@@ -8,8 +8,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 import config
-from html_parser import extract_slots
-from model import CDCPostHeaders, CDCPostPayload
+from src.lib.cdc.html_parser import extract_slots
+from src.lib.cdc.model import CDCPostHeaders, CDCPostPayload
 
 
 class SlotChecker:
