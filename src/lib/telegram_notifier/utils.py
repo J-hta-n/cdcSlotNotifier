@@ -8,13 +8,6 @@ def format_time() -> str:
     return datetime.now().strftime("[%I:%M%p]").lower()
 
 
-def format_no_slots_msg(course_code: str = "") -> str:
-    course_label = format_course_label(course_code)
-    if course_label:
-        return f"{format_time()} No {course_label} slots found"
-    return f"{format_time()} No slots found"
-
-
 def format_slots_found_msg(slot_count: int, details: str = "", course_code: str = "") -> str:
     """Format message when slots are found."""
     course_label = format_course_label(course_code)
