@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from telegram import Bot
 from telegram.error import TelegramError
@@ -7,7 +7,6 @@ from telegram.error import TelegramError
 import config
 from src.lib.telegram_notifier.utils import (
     format_error_msg,
-    format_no_slots_msg,
     format_polling_complete_msg,
     format_polling_started_msg,
     format_session_expired_msg,
@@ -43,57 +42,8 @@ class TelegramNotifier:
         """Synchronous wrapper for async send_message."""
         return asyncio.run(self.send_message(message))
 
-    def should_notify(self, notification_type: str) -> bool:
-        """
-        Determine if a notification should be sent based on deduplication logic.
-
-        Args:
-            notification_type: "no_slots", "slots_found", or "expired"
-
-        Returns:
-            True if notification should be sent, False if it's a duplicate
-        """
-        last_notif_time = self.last_notif_time
-        last_notif_type = self.last_notif_type
-
-        if last_notif_time is None:
-            return True
-
-        if last_notif_type != notification_type:
-            return True
-
-        if notification_type == "no_slots":
-            time_diff = datetime.now() - last_notif_time
-            return time_diff > timedelta(minutes=30)
-
-        if notification_type == "slots_found":
-            return True
-
-        if notification_type == "expired":
-            return True
-
-        return False
-
-    def notify_no_slots(self) -> bool:
-        """Send 'no slots found' notification if dedup allows."""
-        if not self.should_notify("no_slots"):
-            return False
-
-        message = format_no_slots_msg(config.COURSE_CODE)
-        success = self.send_message_sync(message)
-
-        if success:
-            self.last_notif_type = "no_slots"
-            self.last_notif_time = datetime.now()
-            print(f"✓ Notification sent: {message}")
-
-        return success
-
     def notify_slots_found(self, slot_count: int, details: str = "", course_code: str = "") -> bool:
         """Send 'slots found' notification."""
-        if not self.should_notify("slots_found"):
-            return False
-
         message = format_slots_found_msg(slot_count, details, course_code)
         success = self.send_message_sync(message)
 

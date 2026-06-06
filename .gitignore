@@ -1,8 +1,4 @@
 __pycache__/
 venv
-.venv
 .env
-session_state.json
-venv/
-.chrome-profile
 debug

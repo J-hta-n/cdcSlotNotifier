@@ -77,13 +77,6 @@ CDCPostPayload = TypedDict(
 
 
 @dataclass(frozen=True)
-class CDCRequestModel:
-    get_headers: CDCGetHeaders
-    post_headers: CDCPostHeaders
-    post_payload: CDCPostPayload
-
-
-@dataclass(frozen=True)
 class CDCSlot:
     session_date: str
     day: str
