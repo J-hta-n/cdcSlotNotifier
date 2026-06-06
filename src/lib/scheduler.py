@@ -1,6 +1,4 @@
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 from src.lib.cdc.slot_checker import SlotChecker
 from src.lib.telegram_notifier import TelegramNotifier
@@ -11,15 +9,15 @@ class ScheduledSlotChecker:
     """Manages periodic slot checks and Telegram notifications."""
     
     def __init__(self):
-        self.scheduler = BackgroundScheduler()
         self.checker = SlotChecker()
         self.notifier = TelegramNotifier()
-        self.job = None
+        self.running = False
+        self.stop_reason = None
+        self.last_slots_signature = None
     
     def _check_and_notify(self):
         """
-        Perform one slot check and send appropriate notification.
-        This is the job function executed by APScheduler.
+        Perform one slot check and send notification only on slots found or stop conditions.
         """
         timestamp = datetime.now().strftime("%I:%M%p").lower()
         
@@ -30,28 +28,30 @@ class ScheduledSlotChecker:
         
         # Handle errors (session expired, network issues)
         if error:
+            print(f"[{timestamp}] ✗ {error}")
+
             if "Session expired" in error:
-                print(f"[{timestamp}] ✗ {error}")
                 self.notifier.notify_session_expired()
-                # Stop the scheduler since session is dead
-                self.stop()
             else:
-                print(f"[{timestamp}] ⚠ {error}")
-                self.notifier.notify_error(error)
+                self.notifier.notify_error(f"{error}. Polling stopped.")
+
+            self.stop(reason="error")
         else:
-            # Session is valid, check slot count
             if slot_count > 0:
-                # Slots found!
-                print(f"[{timestamp}] ✓ {slot_count} slots found!")
-                self.notifier.notify_slots_found(slot_count, details, config.COURSE_CODE)
+                current_signature = f"{slot_count}|{details}"
+                if current_signature != self.last_slots_signature:
+                    print(f"[{timestamp}] ✓ {slot_count} slots found!")
+                    self.notifier.notify_slots_found(slot_count, details, config.COURSE_CODE)
+                    self.last_slots_signature = current_signature
+                else:
+                    print(f"[{timestamp}] Slots still available (unchanged), no alert sent")
             else:
-                # No slots
                 print(f"[{timestamp}] No slots found")
-                self.notifier.notify_no_slots()
+                self.last_slots_signature = None
     
     def start(self):
-        """Start checks immediately, then keep running at configured interval."""
-        if self.job is not None:
+        """Run checks every interval for a fixed period, then stop."""
+        if self.running:
             print("Scheduler already running.")
             return
         
@@ -65,33 +65,42 @@ class ScheduledSlotChecker:
         print("="*60)
         print("First check: immediate")
         print(f"Check interval: {config.CHECK_INTERVAL_MINUTES} minutes")
+        print(f"Check period: {config.CHECK_PERIOD_HOURS} hours")
         print(f"Course: {config.COURSE_CODE}")
         print("="*60)
 
-        # Run once immediately so user doesn't wait for first interval tick.
-        self._check_and_notify()
-        
-        # Schedule the job to run at the specified interval
-        self.job = self.scheduler.add_job(
-            self._check_and_notify,
-            trigger=IntervalTrigger(minutes=config.CHECK_INTERVAL_MINUTES),
-            id="slot_check_job",
-            name="Slot Availability Check"
-        )
-        
-        self.scheduler.start()
-        
-        print("\n✓ Scheduler started. Press Ctrl+C to stop.\n")
-        
-        # Keep the main thread alive
+        self.running = True
+        self.stop_reason = None
+
+        interval_seconds = max(1, int(config.CHECK_INTERVAL_MINUTES * 60))
+        period_seconds = max(1, int(config.CHECK_PERIOD_HOURS * 3600))
+        end_time = datetime.now() + timedelta(seconds=period_seconds)
+
+        print("\n✓ Polling started. Press Ctrl+C to stop early.\n")
+
         try:
-            while True:
-                time.sleep(1)
+            while self.running and datetime.now() < end_time:
+                self._check_and_notify()
+                if not self.running:
+                    break
+
+                remaining_seconds = int((end_time - datetime.now()).total_seconds())
+                if remaining_seconds <= 0:
+                    break
+
+                time.sleep(min(interval_seconds, remaining_seconds))
+
+            if self.running:
+                self.notifier.notify_polling_complete()
+                self.stop(reason="complete")
         except KeyboardInterrupt:
-            self.stop()
+            self.stop(reason="manual")
     
-    def stop(self):
-        """Stop the scheduler."""
-        if self.scheduler.running:
-            self.scheduler.shutdown()
-            print("\n✓ Scheduler stopped.")
+    def stop(self, reason: str = "manual"):
+        """Stop the polling loop."""
+        if not self.running and self.stop_reason is not None:
+            return
+
+        self.running = False
+        self.stop_reason = reason
+        print("\n✓ Scheduler stopped.")

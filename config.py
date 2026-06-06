@@ -11,6 +11,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 # CDC Configuration
 COURSE_CODE = os.getenv("COURSE_CODE", "EV-ELITETEAM")
 CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "5"))
+CHECK_PERIOD_HOURS = float(os.getenv("CHECK_PERIOD_HOURS", "1"))
 CDC_USER_AGENT = os.getenv(
     "CDC_USER_AGENT",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -58,3 +59,7 @@ def format_slots_found_msg(slot_count: int, details: str = "", course_code: str 
 
 def format_session_expired_msg():
     return f"{format_time()} Session expired, program halted. Please manually login and clear captcha to resume"
+
+
+def format_polling_complete_msg():
+    return f"{format_time()} Polling complete"

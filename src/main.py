@@ -8,33 +8,26 @@ Usage:
 """
 
 import sys
+from pathlib import Path
+
+
+# Allow running as `python src/main.py` by making project root importable.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def main():
-    if len(sys.argv) < 2:
-        command = "start"
-        print("\nNo command provided. Defaulting to 'start'.")
-    else:
-        command = sys.argv[1].lower()
+    print("\nStarting scheduler...")
+    from src.lib.scheduler import ScheduledSlotChecker
 
-    if command == "start":
-        print("\nStarting scheduler...")
-        from src.lib.scheduler import ScheduledSlotChecker
-
-        try:
-            scheduler = ScheduledSlotChecker()
-            scheduler.start()
-        except KeyboardInterrupt:
-            pass
-        except Exception as e:
-            print(f"\nError during scheduler: {e}")
-            sys.exit(1)
-
-    else:
-        print(f"Unknown command: {command}")
-        print(__doc__)
+    try:
+        scheduler = ScheduledSlotChecker()
+        scheduler.start()
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        print(f"\nError during scheduler: {e}")
         sys.exit(1)
-
-
 if __name__ == "__main__":
     main()

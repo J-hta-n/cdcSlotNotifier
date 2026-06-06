@@ -132,3 +132,13 @@ class TelegramNotifier:
             self.last_notif_time = now
             print(f"✓ Notification sent: {message}")
         return success
+
+    def notify_polling_complete(self) -> bool:
+        """Send one final notification when polling window ends."""
+        message = config.format_polling_complete_msg()
+        success = self.send_message_sync(message)
+        if success:
+            self.last_notif_type = "complete"
+            self.last_notif_time = datetime.now()
+            print(f"✓ Notification sent: {message}")
+        return success
