@@ -2,6 +2,22 @@ from dataclasses import dataclass
 from typing import TypedDict
 
 
+CDC_COURSE_LABELS = {
+    "INDUCTION-PROGRAMME": "induction programme",
+    "EV-ELITETEAM": "practical",
+}
+
+
+def format_course_label(course_code: str) -> str:
+    """Convert CDC course code into a user-friendly label."""
+    code = (course_code or "").strip().upper()
+    if code in CDC_COURSE_LABELS:
+        return CDC_COURSE_LABELS[code]
+    if not code:
+        return ""
+    return code.replace("-", " ").lower()
+
+
 CDCGetHeaders = TypedDict(
     "CDCGetHeaders",
     {

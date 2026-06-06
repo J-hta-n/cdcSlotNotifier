@@ -1,7 +1,7 @@
 import re
 from typing import List
 
-from model import CDCSlot
+from src.lib.cdc.model import CDCSlot
 
 
 def _extract_grid_html(response_text: str) -> str:
