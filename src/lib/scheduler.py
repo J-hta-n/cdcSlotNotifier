@@ -15,17 +15,39 @@ class ScheduledSlotChecker:
         self.running = False
         self.stop_reason = None
         self.last_slots_signature = None
+
+    def _perform_check(self):
+        """Run one slot-check request and return timestamp + result tuple."""
+        timestamp = datetime.now().strftime("%I:%M%p").lower()
+        print(f"\n[{timestamp}] Checking for slots...")
+        slot_count, error, details = self.checker.check_slots()
+        return timestamp, slot_count, error, details
+
+    @staticmethod
+    def _format_first_result(slot_count: int, error: str, details: str) -> str:
+        if error:
+            return f"Polling stopped due to error: {error}"
+
+        if slot_count > 0:
+            course_label = format_course_label(config.COURSE_CODE)
+            if course_label:
+                summary = f"{slot_count} {course_label} slots found"
+            else:
+                summary = f"{slot_count} slots found"
+            if details:
+                return f"{summary}\n{details}"
+            return summary
+
+        course_label = format_course_label(config.COURSE_CODE)
+        if course_label:
+            return f"No {course_label} slots found, will update only when new slots are found"
+        return "No slots found, will update only when new slots are found"
     
     def _check_and_notify(self):
         """
         Perform one slot check and send notification only on slots found or stop conditions.
         """
-        timestamp = datetime.now().strftime("%I:%M%p").lower()
-        
-        print(f"\n[{timestamp}] Checking for slots...")
-
-        # Perform check
-        slot_count, error, details = self.checker.check_slots()
+        timestamp, slot_count, error, details = self._perform_check()
         
         # Handle errors (session expired, network issues)
         if error:
@@ -68,7 +90,6 @@ class ScheduledSlotChecker:
         print("\n" + "="*60)
         print("CDC SLOT NOTIFIER - SCHEDULER STARTED")
         print("="*60)
-        print("First check: immediate")
         print(f"Check interval: {config.CHECK_INTERVAL_MINUTES} minutes")
         print(f"Check period: {config.CHECK_PERIOD_HOURS} hours")
         print(f"Course: {config.COURSE_CODE}")
@@ -84,16 +105,34 @@ class ScheduledSlotChecker:
         print("\n✓ Polling started. Press Ctrl+C to stop early.\n")
 
         try:
-            while self.running and datetime.now() < end_time:
-                self._check_and_notify()
-                if not self.running:
-                    break
+            timestamp, slot_count, error, details = self._perform_check()
 
+            first_result = self._format_first_result(slot_count, error, details)
+            self.notifier.notify_polling_started(
+                interval_minutes=config.CHECK_INTERVAL_MINUTES,
+                period_hours=config.CHECK_PERIOD_HOURS,
+                course_code=config.COURSE_CODE,
+                first_result=first_result,
+            )
+
+            if error:
+                print(f"[{timestamp}] ✗ {error}")
+                self.stop(reason="error")
+                return
+
+            if slot_count > 0:
+                self.last_slots_signature = f"{slot_count}|{details}"
+
+            while self.running and datetime.now() < end_time:
                 remaining_seconds = int((end_time - datetime.now()).total_seconds())
                 if remaining_seconds <= 0:
                     break
 
                 time.sleep(min(interval_seconds, remaining_seconds))
+
+                self._check_and_notify()
+                if not self.running:
+                    break
 
             if self.running:
                 self.notifier.notify_polling_complete()

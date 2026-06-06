@@ -9,6 +9,7 @@ from src.lib.telegram_notifier.utils import (
     format_error_msg,
     format_no_slots_msg,
     format_polling_complete_msg,
+    format_polling_started_msg,
     format_session_expired_msg,
     format_slots_found_msg,
 )
@@ -141,6 +142,27 @@ class TelegramNotifier:
         success = self.send_message_sync(message)
         if success:
             self.last_notif_type = "complete"
+            self.last_notif_time = datetime.now()
+            print(f"✓ Notification sent: {message}")
+        return success
+
+    def notify_polling_started(
+        self,
+        interval_minutes: int,
+        period_hours: float,
+        course_code: str,
+        first_result: str,
+    ) -> bool:
+        """Send one startup summary notification with first poll outcome."""
+        message = format_polling_started_msg(
+            interval_minutes=interval_minutes,
+            period_hours=period_hours,
+            course_code=course_code,
+            first_result=first_result,
+        )
+        success = self.send_message_sync(message)
+        if success:
+            self.last_notif_type = "started"
             self.last_notif_time = datetime.now()
             print(f"✓ Notification sent: {message}")
         return success

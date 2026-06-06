@@ -37,3 +37,20 @@ def format_polling_complete_msg() -> str:
 
 def format_error_msg(error_message: str) -> str:
     return f"{format_time()} Error: {error_message}"
+
+
+def format_polling_started_msg(
+    interval_minutes: int,
+    period_hours: float,
+    course_code: str,
+    first_result: str,
+) -> str:
+    course_label = format_course_label(course_code)
+    course_display = course_label.title() if course_label else (course_code or "Unknown")
+    return (
+        f"{format_time()} Polling started\n"
+        f"Interval: {interval_minutes} minutes\n"
+        f"Period: {period_hours} hours\n"
+        f"Course: {course_display}\n\n"
+        f"Initial poll:\n{first_result}"
+    )
