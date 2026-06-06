@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import time
+from src.lib.cdc.model import format_course_label
 from src.lib.cdc.slot_checker import SlotChecker
 from src.lib.telegram_notifier import TelegramNotifier
 import config
@@ -46,7 +47,11 @@ class ScheduledSlotChecker:
                 else:
                     print(f"[{timestamp}] Slots still available (unchanged), no alert sent")
             else:
-                print(f"[{timestamp}] No slots found")
+                course_label = format_course_label(config.COURSE_CODE)
+                if course_label:
+                    print(f"[{timestamp}] No {course_label} slots found")
+                else:
+                    print(f"[{timestamp}] No slots found")
                 self.last_slots_signature = None
     
     def start(self):
