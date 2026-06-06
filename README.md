@@ -1,52 +1,28 @@
-# CDC Slot Notifier (Simple Mode)
+# CDC Slot Notifier
 
-This project now runs with a minimal flow:
-
-- Put `COOKIES` (and optional `COURSE_CODE`) in `.env`
-- Run `python main.py`
-- First check runs immediately (no 9am/1-hour window logic)
-- Then it keeps checking every `CHECK_INTERVAL_MINUTES`
+This program helps poll for available practical lesson slots at a specified frequency over a period of time, eg every 5 minutes for 3 hours, and will notify the user via Telegram whenever new slots are found
 
 ## Setup
 
-1. Install dependencies:
+1. Create a virtual environment and install dependencies:
 
 ```bash
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-2. Create `.env` and set these values:
+2. Configure your local `.env` file with reference to `.env.example`
 
-```env
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
+## Usage
 
-# Optional, defaults to EV-ELITETEAM
-COURSE_CODE=EV-ELITETEAM
-
-# Runs every N minutes (first check is immediate)
-CHECK_INTERVAL_MINUTES=5
-
-# Full Cookie header string copied from booking request
-COOKIES=ASP.NET_SessionId=...; ILOAFLLQ=...; cf_clearance=...; __cf_bm=...
-
-# Optional: where each raw POST response is dumped for debugging
-POST_RESPONSE_DUMP_FILE=debug/last_post_response.txt
-```
-
-## Run
+From the virtual environment, run
 
 ```bash
-python main.py
+python src/main.py
 ```
 
-or
-
-```bash
-python main.py start
-```
-
-Behavior:
+Notes:
 
 - First check happens instantly when started
 - `No slots found` is deduplicated by notifier logic
@@ -56,9 +32,3 @@ Behavior:
 - Raw CDC POST response is saved each check to `debug/last_post_response.txt` (or your configured dump file)
 - Slot detection now parses the booking grid by date/day/session columns (`Images1.gif` = available)
 - POST form payload is auto-constructed in code; only fresh hidden fields + course value are injected at runtime
-
-## Notes
-
-- `python main.py login` is intentionally deprecated in this simplified mode.
-- Legacy login/session capture modules were removed in this simplified mode.
-- If you get 429/session expired, refresh `COOKIES` from a fresh browser request.
